@@ -1,0 +1,13 @@
+*.log
+*.tmp
+*.bak
+*.swp
+**/db/data/
+**/mariadb_data/
+**/mysql_data/
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
+node_modules/
+_pycache_/
