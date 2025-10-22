@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  # PHP-FPM (SCRIPT2)
+  script:
+    build:
+      context: ./php
+      dockerfile: Dockerfile
+    container_name: SCRIPT0
+    networks:
+      - webnet
+    volumes:
+      - ./web:/app:rw
+    # Optionnel : attends que MariaDB soit up (simpliste)
+    depends_on:
+      - data
+
+  # Nginx (HTTP2)
+  http:
+    image: nginx:stable-alpine
+    container_name: HTTP0
+    networks:
+      - webnet
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    volumes:
+      - ./web:/app:ro
+      # Monte soit le fichier, soit tout le dossier conf.d (au choix, garde UNE ligne)
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # - ./nginx:/etc/nginx/conf.d:ro
+    depends_on:
+      - script
+
+  # MariaDB (DATA)
+  data:
+    image: mariadb:11
+    container_name: DATA2
+    networks:
+      - webnet
+    environment:
+      # Exigence TP : mot de passe root aléatoire
+      MARIADB_RANDOM_ROOT_PASSWORD: "1"
+      # User/app DB pour test.php
+      MARIADB_DATABASE: "${DB_NAME:-tpdb}"
+      MARIADB_USER: "${DB_USER:-tpuser}"
+      MARIADB_PASSWORD: "${DB_PASS:-tpsecret}"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+
+networks:
+  webnet:
+
+volumes:
+  mariadb_data:
