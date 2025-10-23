@@ -1,37 +1,46 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export MSYS_NO_PATHCONV=1
 
-STEP_NET="webnet2"
+ROOT="C:/Users/bourh/Docker-TP3/etape2"
+NET_NAME="savage"
 HTTP_NAME="HTTP"
 PHP_NAME="SCRIPT"
 DB_NAME="DATA"
 
+# Supprimer containers et réseau existants
 docker rm -f "$HTTP_NAME" "$PHP_NAME" "$DB_NAME" 2>/dev/null || true
-docker network create "$STEP_NET" 2>/dev/null || true
+docker network rm "$NET_NAME" 2>/dev/null || true
 
-# build image PHP avec mysqli/pdo_mysql
-docker build -t php-mysqli:8.2-fpm-alpine ./php
+# Créer le réseau
+docker network create "$NET_NAME"
 
-# MariaDB (init .sql joué si volume neuf)
-docker volume create etape2_mariadb_data >/dev/null
-docker run -d --name "$DB_NAME" --network "$STEP_NET" \
-  -e MARIADB_RANDOM_ROOT_PASSWORD=1 \
-  -e MARIADB_DATABASE=tpdb \
-  -e MARIADB_USER=tpuser \
-  -e MARIADB_PASSWORD=tpsecret \
-  -v etape2_mariadb_data:/var/lib/mysql \
-  -v "$(pwd)/db/init:/docker-entrypoint-initdb.d:ro" \
-  mariadb:11
+# Lancer MariaDB
+docker run -d \
+  --name "$DB_NAME" \
+  --network "$NET_NAME" \
+  -e MARIADB_RANDOM_ROOT_PASSWORD=yes \
+  -v "$ROOT/src/create.sql:/docker-entrypoint-initdb.d/create.sql:ro" \
+  mariadb:latest
 
-# PHP-FPM custom (rw)
-docker run -d --name "$PHP_NAME" --network "$STEP_NET" \
-  -v "$(pwd)/web:/app:rw" \
-  php-mysqli:8.2-fpm-alpine
+# Construire l'image PHP avec mysqli
+docker build -t php-mysqli "$ROOT/docker"
 
-# Nginx (ro + conf)
-docker run -d --name "$HTTP_NAME" --network "$STEP_NET" -p 8081:80 \
-  -v "$(pwd)/web:/app:ro" \
-  -v "$(pwd)/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" \
+# Lancer PHP-FPM
+docker run -d \
+  --name "$PHP_NAME" \
+  --network "$NET_NAME" \
+  -v "$ROOT/src:/app" \
+  php-mysqli
+
+# Lancer NGINX
+docker run -d \
+  --name "$HTTP_NAME" \
+  --network "$NET_NAME" \
+  -p 8080:80 \
+  -v "$ROOT/src:/app" \
+  -v "$ROOT/config/default.conf:/etc/nginx/conf.d/default.conf:ro" \
   nginx:stable-alpine
 
-echo "Étape 2 lancée → http://localhost:8081 (test.php)"
+echo "✅ Étape 2 en route !"
+echo "🌐 Ouvre ton browser : http://localhost:8080/test.php"
